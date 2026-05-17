@@ -1,15 +1,15 @@
 body.admin-body {
-    background: linear-gradient(180deg, #f4f8fb 0%, #eaf1f6 100%);
+    background: linear-gradient(180deg, #E9F7F2 0%, #BFE8D6 100%);
 }
 
 .admin-body .page-hero {
-    background: #f2f7fb;
+    background: #E9F7F2;
 }
 
 .admin-body .site-header {
-    border-bottom-color: #d7e2ea;
+    border-bottom-color: #BFE8D6;
 }
 
 .admin-body .badge {
-    border: 1px solid rgba(15, 76, 92, 0.1);
+    border: 1px solid rgba(47, 126, 106, 0.1);
 }

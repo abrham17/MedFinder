@@ -1,16 +1,16 @@
 body.pharmacy-body {
-    background: linear-gradient(180deg, #f5f9f4 0%, #e8f3ea 100%);
+    background: linear-gradient(180deg, #E9F7F2 0%, #BFE8D6 100%);
 }
 
 .pharmacy-body .page-hero {
-    background: #f0f7f0;
+    background: #E9F7F2;
 }
 
 .pharmacy-body .site-header {
-    border-bottom-color: #dfe7da;
+    border-bottom-color: #BFE8D6;
 }
 
 .pharmacy-body .badge-success {
-    background: #dff5e6;
-    color: #2b7a50;
+    background: #BFE8D6;
+    color: #1F2E2C;
 }
