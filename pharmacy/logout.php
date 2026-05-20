@@ -1,9 +1,22 @@
 <?php
-$page_title = 'Pharmacy Logout - MedFinder Ethiopia';
-$asset_path = '../';
-$extra_css = array('css/pharmacy.css');
-$body_class = 'pharmacy-body';
-include '../includes/header.php';
+require_once '../includes/config.php';
+require_once '../includes/functions.php';
+
+// Start session if not already started
+if (session_status() === PHP_SESSION_NONE) {
+    session_name(SESSION_NAME);
+    session_start();
+}
+
+// Destroy session
+session_unset();
+session_destroy();
+
+// Set flash message
+set_flash_message('You have been logged out successfully', 'success');
+
+// Redirect to login page
+redirect('login.php');
 ?>
 
 <main id="main-content">

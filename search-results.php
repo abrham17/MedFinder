@@ -3,6 +3,32 @@ $page_title = 'Search Results - MedFinder Ethiopia';
 $asset_path = '';
 $extra_js = array('js/search.js');
 include 'includes/header.php';
+
+require_once 'includes/config.php';
+require_once 'includes/functions.php';
+require_once 'includes/db-connect.php';
+
+// Get search parameters
+$query = isset($_GET['q']) ? sanitize_input($_GET['q']) : '';
+$neighborhood_id = isset($_GET['neighborhood']) ? (int)$_GET['neighborhood'] : null;
+$status_filter = isset($_GET['status']) ? sanitize_input($_GET['status']) : null;
+
+$results = [];
+$results_count = 0;
+$search_performed = false;
+
+if (!empty($query)) {
+    $search_performed = true;
+    $results = search_pharmacies_by_medicine($conn, $query, $neighborhood_id, $status_filter);
+    $results_count = count($results);
+    
+    // Log search for analytics
+    if ($results_count > 0) {
+        $stmt = $conn->prepare("INSERT INTO search_logs (medicine_name, neighborhood_id, results_count) VALUES (?, ?, ?)");
+        $stmt->bind_param("sii", $query, $neighborhood_id, $results_count);
+        $stmt->execute();
+    }
+}
 ?>
 
 <main id="main-content">
@@ -10,9 +36,8 @@ include 'includes/header.php';
         <div class="container page-hero-inner">
             <div>
                 <p class="eyebrow">Search results</p>
-                <h1 class="page-title">Insulin in Bole</h1>
-                <p class="page-subtitle">Found 12 pharmacies with available stock.</p>
-                <!-- Backend: replace this summary with live query results. -->
+                <h1 class="page-title"><?php echo htmlspecialchars($query); ?> <?php echo $neighborhood_id ? 'in ' . htmlspecialchars($results[0]['neighborhood_name'] ?? '') : ''; ?></h1>
+                <p class="page-subtitle"><?php echo $search_performed ? 'Found ' . $results_count . ' pharmacies with available stock.' : 'Enter a medicine name to search.'; ?></p>
                 <div class="breadcrumb">
                     <a href="index.php">Home</a>
                     <span>/</span>
@@ -33,26 +58,30 @@ include 'includes/header.php';
                 <form class="filter-form" action="search-results.php" method="get">
                     <div class="form-group">
                         <label for="filter-medicine">Medicine</label>
-                        <input type="text" id="filter-medicine" name="q" placeholder="Insulin">
+                        <input type="text" id="filter-medicine" name="q" placeholder="Insulin" value="<?php echo htmlspecialchars($query); ?>">
                     </div>
                     <div class="form-group">
                         <label for="filter-neighborhood">Neighborhood</label>
                         <select id="filter-neighborhood" name="neighborhood">
                             <option value="">All neighborhoods</option>
-                            <option value="bole">Bole</option>
-                            <option value="kirkos">Kirkos</option>
-                            <option value="arada">Arada</option>
-                            <option value="yeka">Yeka</option>
-                            <option value="lideta">Lideta</option>
+                            <?php 
+                            $neighborhoods = get_all_neighborhoods($conn);
+                            foreach ($neighborhoods as $hood): 
+                                $selected = ($neighborhood_id == $hood['neighborhood_id']) ? 'selected' : '';
+                            ?>
+                                <option value="<?php echo $hood['neighborhood_id']; ?>" <?php echo $selected; ?>>
+                                    <?php echo htmlspecialchars($hood['name']); ?>
+                                </option>
+                            <?php endforeach; ?>
                         </select>
                     </div>
                     <div class="form-group">
                         <label>Stock status</label>
                         <div class="radio-list">
-                            <label><input type="radio" name="status" value="" checked> Any</label>
-                            <label><input type="radio" name="status" value="in_stock"> In stock</label>
-                            <label><input type="radio" name="status" value="limited"> Limited</label>
-                            <label><input type="radio" name="status" value="out_of_stock"> Out of stock</label>
+                            <label><input type="radio" name="status" value="" <?php echo $status_filter === '' ? 'checked' : ''; ?>> Any</label>
+                            <label><input type="radio" name="status" value="in_stock" <?php echo $status_filter === 'in_stock' ? 'checked' : ''; ?>> In stock</label>
+                            <label><input type="radio" name="status" value="limited" <?php echo $status_filter === 'limited' ? 'checked' : ''; ?>> Limited</label>
+                            <label><input type="radio" name="status" value="out_of_stock" <?php echo $status_filter === 'out_of_stock' ? 'checked' : ''; ?>> Out of stock</label>
                         </div>
                     </div>
                     <div class="form-group">
@@ -87,67 +116,42 @@ include 'includes/header.php';
                             </select>
                         </div>
                     </div>
-                    <span class="pill pill-success">12 pharmacies</span>
+                    <span class="pill pill-success"><?php echo $results_count; ?> pharmacies</span>
                 </div>
 
                 <div class="result-list">
-                    <article class="card result-card">
-                        <div class="card-header">
-                            <h3>Unity Pharmacy</h3>
-                            <span class="badge badge-success">In stock</span>
+                    <?php if ($search_performed && $results_count > 0): ?>
+                        <?php foreach ($results as $result): ?>
+                            <article class="card result-card">
+                                <div class="card-header">
+                                    <h3><?php echo htmlspecialchars($result['pharmacy_name']); ?></h3>
+                                    <?php echo render_status_badge($result['stock_status']); ?>
+                                </div>
+                                <p class="card-meta"><?php echo htmlspecialchars($result['neighborhood_name']); ?>, <?php echo htmlspecialchars($result['address']); ?></p>
+                                <div class="card-details">
+                                    <span>Price: <?php echo $result['price'] ? number_format($result['price'], 2) . ' ETB' : 'Not specified'; ?></span>
+                                    <span>Quantity: <?php echo $result['quantity']; ?></span>
+                                    <span>Updated: <?php echo time_ago($result['updated_at']); ?></span>
+                                </div>
+                                <div class="card-actions">
+                                    <a class="btn btn-secondary" href="pharmacy-detail.php?id=<?php echo $result['pharmacy_id']; ?>">View details</a>
+                                    <a class="btn btn-link" href="tel:<?php echo format_ethiopian_phone($result['phone']); ?>">Call</a>
+                                </div>
+                            </article>
+                        <?php endforeach; ?>
+                    <?php elseif ($search_performed && $results_count === 0): ?>
+                        <div class="card empty-state">
+                            <h3>No pharmacies found</h3>
+                            <p>Try adjusting filters or searching by a different brand name.</p>
+                            <a class="btn btn-secondary" href="index.php">Start a new search</a>
                         </div>
-                        <p class="card-meta">Bole, Atlas Area</p>
-                        <div class="card-details">
-                            <span>Price range: 230 - 260 ETB</span>
-                            <span>Updated 15 minutes ago</span>
-                            <span>Open until 9:00 PM</span>
+                    <?php else: ?>
+                        <div class="card empty-state">
+                            <h3>Enter a medicine name to search</h3>
+                            <p>Search for medicines across all registered pharmacies.</p>
+                            <a class="btn btn-secondary" href="index.php">Go to home page</a>
                         </div>
-                        <div class="card-actions">
-                            <a class="btn btn-secondary" href="pharmacy-detail.php">View details</a>
-                            <a class="btn btn-link" href="tel:+251912345678">Call</a>
-                        </div>
-                    </article>
-
-                    <article class="card result-card">
-                        <div class="card-header">
-                            <h3>EthioCare Pharmacy</h3>
-                            <span class="badge badge-warning">Limited</span>
-                        </div>
-                        <p class="card-meta">Kirkos, Meskel Square</p>
-                        <div class="card-details">
-                            <span>Price range: 240 - 275 ETB</span>
-                            <span>Updated 45 minutes ago</span>
-                            <span>Open until 8:00 PM</span>
-                        </div>
-                        <div class="card-actions">
-                            <a class="btn btn-secondary" href="pharmacy-detail.php">View details</a>
-                            <a class="btn btn-link" href="tel:+251911223344">Call</a>
-                        </div>
-                    </article>
-
-                    <article class="card result-card">
-                        <div class="card-header">
-                            <h3>BlueCross Pharmacy</h3>
-                            <span class="badge badge-danger">Out of stock</span>
-                        </div>
-                        <p class="card-meta">Yeka, Megenagna</p>
-                        <div class="card-details">
-                            <span>Expected restock: Tomorrow</span>
-                            <span>Updated 2 hours ago</span>
-                            <span>Open until 10:00 PM</span>
-                        </div>
-                        <div class="card-actions">
-                            <a class="btn btn-secondary" href="pharmacy-detail.php">View details</a>
-                            <a class="btn btn-link" href="tel:+251900112233">Call</a>
-                        </div>
-                    </article>
-                </div>
-
-                <!-- Backend: show this block only when no results match the filters. -->
-                <div class="card empty-state">
-                    <h3>No pharmacies found</h3>
-                    <p>Try adjusting filters or searching by a different brand name.</p>
-                    <a class="btn btn-secondary" href="index.php">Start a new search</a>
+                    <?php endif; ?>
                 </div>
             </div>
         </div>

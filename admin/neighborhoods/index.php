@@ -4,6 +4,15 @@ $asset_path = '../../';
 $extra_css = array('css/admin.css');
 $body_class = 'admin-body';
 include '../../includes/header.php';
+
+require_once '../../includes/config.php';
+require_once '../../includes/functions.php';
+require_once '../../includes/db-connect.php';
+require_once '../../includes/admin-auth.php';
+
+// Get all neighborhoods
+$neighborhoods = get_all_neighborhoods($conn);
+$total_neighborhoods = count($neighborhoods);
 ?>
 
 <main id="main-content">
@@ -39,33 +48,26 @@ include '../../includes/header.php';
                         </tr>
                     </thead>
                     <tbody>
-                        <tr>
-                            <td>Bole</td>
-                            <td>Airport corridor and commercial zone</td>
-                            <td>East</td>
-                            <td class="table-actions">
-                                <a class="btn btn-secondary" href="edit.php">Edit</a>
-                                <a class="btn btn-link" href="delete.php">Delete</a>
-                            </td>
-                        </tr>
-                        <tr>
-                            <td>Kirkos</td>
-                            <td>Central business district</td>
-                            <td>Central</td>
-                            <td class="table-actions">
-                                <a class="btn btn-secondary" href="edit.php">Edit</a>
-                                <a class="btn btn-link" href="delete.php">Delete</a>
-                            </td>
-                        </tr>
-                        <tr>
-                            <td>Yeka</td>
-                            <td>Residential and market areas</td>
-                            <td>North</td>
-                            <td class="table-actions">
-                                <a class="btn btn-secondary" href="edit.php">Edit</a>
-                                <a class="btn btn-link" href="delete.php">Delete</a>
-                            </td>
-                        </tr>
+                        <?php if ($total_neighborhoods > 0): ?>
+                            <?php foreach ($neighborhoods as $neighborhood): ?>
+                                <tr>
+                                    <td><strong><?php echo htmlspecialchars($neighborhood['name']); ?></strong></td>
+                                    <td><?php echo htmlspecialchars($neighborhood['description'] ?? 'N/A'); ?></td>
+                                    <td><?php echo htmlspecialchars($neighborhood['zone'] ?? 'N/A'); ?></td>
+                                    <td class="table-actions">
+                                        <a class="btn btn-secondary" href="edit.php?id=<?php echo $neighborhood['neighborhood_id']; ?>">Edit</a>
+                                        <a class="btn btn-link" href="delete.php?id=<?php echo $neighborhood['neighborhood_id']; ?>">Delete</a>
+                                    </td>
+                                </tr>
+                            <?php endforeach; ?>
+                        <?php else: ?>
+                            <tr>
+                                <td colspan="4" style="text-align: center; padding: 40px;">
+                                    <p>No neighborhoods found.</p>
+                                    <a class="btn btn-primary" href="add.php">Add your first neighborhood</a>
+                                </td>
+                            </tr>
+                        <?php endif; ?>
                     </tbody>
                 </table>
             </div>

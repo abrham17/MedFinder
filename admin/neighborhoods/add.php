@@ -4,6 +4,52 @@ $asset_path = '../../';
 $extra_css = array('css/admin.css');
 $body_class = 'admin-body';
 include '../../includes/header.php';
+
+require_once '../../includes/config.php';
+require_once '../../includes/functions.php';
+require_once '../../includes/db-connect.php';
+require_once '../../includes/admin-auth.php';
+
+// Process form submission
+if ($_SERVER['REQUEST_METHOD'] == 'POST') {
+    $errors = [];
+    
+    // Sanitize inputs
+    $name = sanitize_input($_POST['name']);
+    $zone = sanitize_input($_POST['zone']);
+    $description = !empty($_POST['description']) ? sanitize_input($_POST['description']) : null;
+    
+    // Validate inputs
+    if (empty($name)) $errors[] = "Neighborhood name is required";
+    
+    // Check if neighborhood already exists
+    $stmt = $conn->prepare("SELECT neighborhood_id FROM neighborhoods WHERE name = ?");
+    $stmt->bind_param("s", $name);
+    $stmt->execute();
+    if ($stmt->get_result()->num_rows > 0) {
+        $errors[] = "This neighborhood already exists";
+    }
+    
+    // If no errors, insert into database
+    if (empty($errors)) {
+        $stmt = $conn->prepare("INSERT INTO neighborhoods (name, zone, description) VALUES (?, ?, ?)");
+        $stmt->bind_param("sss", $name, $zone, $description);
+        
+        if ($stmt->execute()) {
+            set_flash_message("Neighborhood added successfully", "success");
+            redirect('index.php');
+        } else {
+            $errors[] = "Database error: " . $conn->error;
+        }
+    }
+    
+    // If errors, display them
+    if (!empty($errors)) {
+        foreach ($errors as $error) {
+            echo "<div class='alert alert-danger'>$error</div>";
+        }
+    }
+}
 ?>
 
 <main id="main-content">

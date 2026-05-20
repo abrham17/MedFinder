@@ -4,6 +4,31 @@ $asset_path = '../../';
 $extra_css = array('css/admin.css');
 $body_class = 'admin-body';
 include '../../includes/header.php';
+
+require_once '../../includes/config.php';
+require_once '../../includes/functions.php';
+require_once '../../includes/db-connect.php';
+require_once '../../includes/admin-auth.php';
+
+$pharmacy_id = isset($_GET['id']) ? (int)$_GET['id'] : 0;
+
+// Get pharmacy
+$stmt = $conn->prepare("SELECT p.*, n.name as neighborhood_name FROM pharmacies p LEFT JOIN neighborhoods n ON p.neighborhood_id = n.neighborhood_id WHERE p.pharmacy_id = ?");
+$stmt->bind_param("i", $pharmacy_id);
+$stmt->execute();
+$result = $stmt->get_result();
+$pharmacy = $result->fetch_assoc();
+
+if (!$pharmacy) {
+    set_flash_message("Pharmacy not found", "error");
+    redirect('index.php');
+}
+
+// Get pharmacy inventory
+$stmt = $conn->prepare("SELECT i.*, m.medicine_name FROM inventory i JOIN medicines m ON i.medicine_id = m.medicine_id WHERE i.pharmacy_id = ? ORDER BY i.updated_at DESC LIMIT 10");
+$stmt->bind_param("i", $pharmacy_id);
+$stmt->execute();
+$inventory = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
 ?>
 
 <main id="main-content">
@@ -11,8 +36,8 @@ include '../../includes/header.php';
         <div class="container page-hero-inner">
             <div>
                 <p class="eyebrow">Pharmacy profile</p>
-                <h1 class="page-title">Unity Pharmacy</h1>
-                <p class="page-subtitle">Bole, Atlas Area | Status: Active</p>
+                <h1 class="page-title"><?php echo htmlspecialchars($pharmacy['pharmacy_name']); ?></h1>
+                <p class="page-subtitle"><?php echo htmlspecialchars($pharmacy['neighborhood_name'] ?? 'N/A'); ?> | Status: <?php echo render_status_badge($pharmacy['status']); ?></p>
                 <div class="breadcrumb">
                     <a href="../index.php">Admin</a>
                     <span>/</span>
@@ -23,7 +48,7 @@ include '../../includes/header.php';
             </div>
             <div class="page-actions">
                 <a class="btn btn-secondary" href="index.php">Back to list</a>
-                <a class="btn btn-primary" href="approve.php">Update status</a>
+                <a class="btn btn-primary" href="approve.php?id=<?php echo $pharmacy['pharmacy_id']; ?>">Update status</a>
             </div>
         </div>
     </section>
@@ -36,19 +61,31 @@ include '../../includes/header.php';
                     <div class="info-list">
                         <div class="info-row">
                             <span>Owner</span>
-                            <span>Hana Mulu</span>
+                            <span><?php echo htmlspecialchars($pharmacy['owner_name']); ?></span>
                         </div>
                         <div class="info-row">
                             <span>Phone</span>
-                            <span>+251 91 234 5678</span>
+                            <span><?php echo format_ethiopian_phone($pharmacy['phone']); ?></span>
                         </div>
                         <div class="info-row">
                             <span>Email</span>
-                            <span>unity@pharmacy.et</span>
+                            <span><?php echo htmlspecialchars($pharmacy['email']); ?></span>
                         </div>
                         <div class="info-row">
                             <span>License</span>
-                            <span>ETH-12345</span>
+                            <span><?php echo htmlspecialchars($pharmacy['license_number']); ?></span>
+                        </div>
+                        <div class="info-row">
+                            <span>Address</span>
+                            <span><?php echo htmlspecialchars($pharmacy['address']); ?></span>
+                        </div>
+                        <div class="info-row">
+                            <span>Operating hours</span>
+                            <span><?php echo htmlspecialchars($pharmacy['operating_hours'] ?? 'N/A'); ?></span>
+                        </div>
+                        <div class="info-row">
+                            <span>Registered</span>
+                            <span><?php echo time_ago($pharmacy['created_at']); ?></span>
                         </div>
                     </div>
                 </div>
@@ -66,18 +103,20 @@ include '../../includes/header.php';
                                 </tr>
                             </thead>
                             <tbody>
-                                <tr>
-                                    <td>Insulin (Rapid)</td>
-                                    <td><span class="badge badge-success">In stock</span></td>
-                                    <td>42</td>
-                                    <td>15 minutes ago</td>
-                                </tr>
-                                <tr>
-                                    <td>Metformin 500mg</td>
-                                    <td><span class="badge badge-warning">Limited</span></td>
-                                    <td>6</td>
-                                    <td>1 hour ago</td>
-                                </tr>
+                                <?php if (count($inventory) > 0): ?>
+                                    <?php foreach ($inventory as $item): ?>
+                                        <tr>
+                                            <td><?php echo htmlspecialchars($item['medicine_name']); ?></td>
+                                            <td><?php echo render_status_badge($item['status']); ?></td>
+                                            <td><?php echo $item['quantity']; ?></td>
+                                            <td><?php echo time_ago($item['updated_at']); ?></td>
+                                        </tr>
+                                    <?php endforeach; ?>
+                                <?php else: ?>
+                                    <tr>
+                                        <td colspan="4" style="text-align: center; padding: 20px;">No inventory items</td>
+                                    </tr>
+                                <?php endif; ?>
                             </tbody>
                         </table>
                     </div>
@@ -105,8 +144,12 @@ include '../../includes/header.php';
                 <div class="panel">
                     <h3 class="panel-title">Admin actions</h3>
                     <div class="form-footer">
-                        <a class="btn btn-primary" href="approve.php">Change status</a>
-                        <a class="btn btn-secondary" href="delete.php">Suspend pharmacy</a>
+                        <a class="btn btn-primary" href="approve.php?id=<?php echo $pharmacy['pharmacy_id']; ?>">Change status</a>
+                        <?php if ($pharmacy['status'] === 'active'): ?>
+                            <a class="btn btn-secondary" href="approve.php?id=<?php echo $pharmacy['pharmacy_id']; ?>&action=suspend">Suspend pharmacy</a>
+                        <?php elseif ($pharmacy['status'] === 'suspended'): ?>
+                            <a class="btn btn-secondary" href="approve.php?id=<?php echo $pharmacy['pharmacy_id']; ?>&action=activate">Reactivate pharmacy</a>
+                        <?php endif; ?>
                     </div>
                 </div>
             </aside>
